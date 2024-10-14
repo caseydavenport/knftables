@@ -275,6 +275,26 @@ const (
 	MemoryPolicy SetPolicy = "memory"
 )
 
+type Flowtable struct {
+	// Name is the name of the flowtable.
+	Name string
+
+	// Hook is the hook that the flowtable is connected to.
+	Hook *BaseChainHook
+
+	// Priority is the flowtable priority.
+	Priority *BaseChainPriority
+
+	// Device are the network interfaces that the flowtable is attached to.
+	Devices []string
+
+	// Handle is an identifier that can be used to uniquely identify an object when
+	// deleting it. When adding a new object, this must be nil
+	Handle *int
+
+	Comment *string
+}
+
 // Set represents the definition of an nftables set (but not its elements)
 type Set struct {
 	// Name is the name of the set.

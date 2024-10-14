@@ -46,9 +46,11 @@ func getComment(commentGroup string) *string {
 	return &noQuotes
 }
 
-var commentGroup = `(".*")`
-var noSpaceGroup = `([^ ]*)`
-var numberGroup = `([0-9]*)`
+var (
+	commentGroup = `(".*")`
+	noSpaceGroup = `([^ ]*)`
+	numberGroup  = `([0-9]*)`
+)
 
 // Object implementation for Table
 func (table *Table) validate(verb verb) error {
@@ -450,12 +452,15 @@ func (mapObj *Map) parse(line string) error {
 var autoMergeProp = `( auto-merge ;)?`
 
 // groups in []:  [1]%s {(?: [2](type|typeof) [3]([^;]*)) ;(?: flags [4]([^;]*) ;)?(?: timeout [5]%ss ;)?(?: gc-interval [6]%ss ;)?(?: size [7]%s ;)?(?: policy [8]%s ;)?[9]%s(?: comment [10]%s ;)? }
-var mapOrSet = `%s {(?: (type|typeof) ([^;]*)) ;(?: flags ([^;]*) ;)?(?: timeout %ss ;)?(?: gc-interval %ss ;)?(?: size %s ;)?(?: policy %s ;)?%s(?: comment %s ;)? }`
-var mapRegexp = regexp.MustCompile(fmt.Sprintf(mapOrSet, noSpaceGroup, numberGroup, numberGroup, noSpaceGroup, noSpaceGroup, "", commentGroup))
-var setRegexp = regexp.MustCompile(fmt.Sprintf(mapOrSet, noSpaceGroup, numberGroup, numberGroup, noSpaceGroup, noSpaceGroup, autoMergeProp, commentGroup))
+var (
+	mapOrSet  = `%s {(?: (type|typeof) ([^;]*)) ;(?: flags ([^;]*) ;)?(?: timeout %ss ;)?(?: gc-interval %ss ;)?(?: size %s ;)?(?: policy %s ;)?%s(?: comment %s ;)? }`
+	mapRegexp = regexp.MustCompile(fmt.Sprintf(mapOrSet, noSpaceGroup, numberGroup, numberGroup, noSpaceGroup, noSpaceGroup, "", commentGroup))
+	setRegexp = regexp.MustCompile(fmt.Sprintf(mapOrSet, noSpaceGroup, numberGroup, numberGroup, noSpaceGroup, noSpaceGroup, autoMergeProp, commentGroup))
+)
 
 func parseMapAndSetProps(match []string) (name string, typeProp string, typeOf string, flags []SetFlag,
-	timeout *time.Duration, gcInterval *time.Duration, size *uint64, policy *SetPolicy, comment *string, autoMerge *bool) {
+	timeout *time.Duration, gcInterval *time.Duration, size *uint64, policy *SetPolicy, comment *string, autoMerge *bool,
+) {
 	name = match[1]
 	// set and map have different number of match groups, but comment is always the last
 	comment = getComment(match[len(match)-1])
@@ -579,3 +584,59 @@ func (element *Element) parse(line string) error {
 	}
 	return nil
 }
+
+// Object implementation for Flowtable
+func (ft *Flowtable) validate(verb verb) error {
+	switch verb {
+	case addVerb, createVerb, flushVerb:
+		if ft.Handle != nil {
+			return fmt.Errorf("cannot specify Handle in %s operation", verb)
+		}
+		if ft.Hook == nil {
+			return fmt.Errorf("hook must be specified")
+		}
+		if ft.Priority == nil {
+			return fmt.Errorf("priority must be specified")
+		}
+	case deleteVerb:
+		// Handle can be nil or non-nil
+	default:
+		return fmt.Errorf("%s is not implemented for tables", verb)
+	}
+
+	return nil
+}
+
+func (ft *Flowtable) writeOperation(verb verb, ctx *nftContext, writer io.Writer) {
+	// Special case for delete-by-handle
+	if verb == deleteVerb && ft.Handle != nil {
+		fmt.Fprintf(writer, "delete flowtable %s handle %d", ctx.family, *ft.Handle)
+		return
+	}
+
+	// All other cases refer to the flowtable by name
+	fmt.Fprintf(writer, "%s flowtable %s %s %s", verb, ctx.family, ctx.table, ft.Name)
+	if verb == addVerb || verb == createVerb {
+		fmt.Fprintf(writer, " { hook %s priority %d ;", string(*ft.Hook), ft.Priority)
+		fmt.Fprintf(writer, " devices = { %s } ;", strings.Join(ft.Devices, ", "))
+		if ft.Comment != nil && !ctx.noObjectComments {
+			fmt.Fprintf(writer, " comment %q ;", *ft.Comment)
+		}
+		fmt.Fprintf(writer, " }")
+	}
+	fmt.Fprintf(writer, "\n")
+}
+
+var flowtableRegexp = regexp.MustCompile(fmt.Sprintf(`(?:{ comment %s ; })?`, commentGroup))
+
+func (ft *Flowtable) parse(line string) error {
+	match := tableRegexp.FindStringSubmatch(line)
+	if match == nil {
+		return fmt.Errorf("failed parsing table add command")
+	}
+	ft.Comment = getComment(match[1])
+	return nil
+}
+
+// groups in []: [1]%s(?: {(?: type [2]%s hook [3]%s(?: device "[4]%s")(?: priority [5]%s ;))(?: comment [6]%s ;) })
+var r = regexp.MustCompile(fmt.Sprintf(`%s(?: {?: hook %s priority %s ; devices = { %s } ;(?: comment %s ;)? })?`, noSpaceGroup, noSpaceGroup, noSpaceGroup, commentGroup, commentGroup))
