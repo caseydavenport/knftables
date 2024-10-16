@@ -627,6 +627,50 @@ func TestObjects(t *testing.T) {
 			object: &Element{Set: "myset", Key: []string{"10.0.0.1"}},
 			err:    "not implemented",
 		},
+
+		// Flowtables
+		{
+			name:   "add flowtable",
+			verb:   addVerb,
+			object: &Flowtable{Name: "myflowtable", Hook: PtrTo(IngressHook), Priority: PtrTo(FilterPriority), Devices: []string{"eth0", "ens4"}},
+			out:    `add flowtable ip mytable myflowtable { hook ingress priority 0 ; devices = { eth0, ens4 } ; }`,
+		},
+		{
+			name:   "create flowtable",
+			verb:   createVerb,
+			object: &Flowtable{Name: "myflowtable", Hook: PtrTo(IngressHook), Priority: PtrTo(FilterPriority), Devices: []string{"eth0"}},
+			out:    `create flowtable ip mytable myflowtable { hook ingress priority 0 ; devices = { eth0 } ; }`,
+		},
+		{
+			name:   "flush flowtable",
+			verb:   flushVerb,
+			object: &Flowtable{Name: "myflowtable"},
+			out:    `flush flowtable ip mytable myflowtable`,
+		},
+		{
+			name:   "delete flowtable",
+			verb:   deleteVerb,
+			object: &Flowtable{Name: "myflowtable"},
+			out:    `delete flowtable ip mytable myflowtable`,
+		},
+		{
+			name:   "delete flowtable by handle",
+			verb:   deleteVerb,
+			object: &Flowtable{Name: "myflowtable", Handle: PtrTo(5)},
+			out:    `delete flowtable ip handle 5`,
+		},
+		{
+			name:   "replace flowtable",
+			verb:   replaceVerb,
+			object: &Flowtable{Name: "myflowtable", Hook: PtrTo(IngressHook), Priority: PtrTo(FilterPriority), Devices: []string{"eth0"}},
+			err:    "not implemented",
+		},
+		{
+			name:   "insert flowtable",
+			verb:   insertVerb,
+			object: &Flowtable{Name: "myflowtable", Hook: PtrTo(IngressHook), Priority: PtrTo(FilterPriority), Devices: []string{"eth0"}},
+			err:    "not implemented",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.object.validate(tc.verb)

@@ -588,7 +588,7 @@ func (element *Element) parse(line string) error {
 // Object implementation for Flowtable
 func (ft *Flowtable) validate(verb verb) error {
 	switch verb {
-	case addVerb, createVerb, flushVerb:
+	case addVerb, createVerb:
 		if ft.Handle != nil {
 			return fmt.Errorf("cannot specify Handle in %s operation", verb)
 		}
@@ -598,10 +598,9 @@ func (ft *Flowtable) validate(verb verb) error {
 		if ft.Priority == nil {
 			return fmt.Errorf("priority must be specified")
 		}
-	case deleteVerb:
-		// Handle can be nil or non-nil
+	case deleteVerb, flushVerb:
 	default:
-		return fmt.Errorf("%s is not implemented for tables", verb)
+		return fmt.Errorf("%s is not implemented for flowtables", verb)
 	}
 
 	return nil
@@ -617,7 +616,16 @@ func (ft *Flowtable) writeOperation(verb verb, ctx *nftContext, writer io.Writer
 	// All other cases refer to the flowtable by name
 	fmt.Fprintf(writer, "%s flowtable %s %s %s", verb, ctx.family, ctx.table, ft.Name)
 	if verb == addVerb || verb == createVerb {
-		fmt.Fprintf(writer, " { hook %s priority %d ;", string(*ft.Hook), ft.Priority)
+		// Parse the priority to a number if we can, because older
+		// versions of nft don't accept certain named priorities
+		// in all contexts (eg, "dstnat" priority in the "output"
+		// hook).
+		if priority, err := ParsePriority(ctx.family, string(*ft.Priority)); err == nil {
+			fmt.Fprintf(writer, " { hook %s priority %d ;", string(*ft.Hook), priority)
+		} else {
+			fmt.Fprintf(writer, " { hook %s priority %s ;", string(*ft.Hook), string(*ft.Priority))
+		}
+
 		fmt.Fprintf(writer, " devices = { %s } ;", strings.Join(ft.Devices, ", "))
 		if ft.Comment != nil && !ctx.noObjectComments {
 			fmt.Fprintf(writer, " comment %q ;", *ft.Comment)
