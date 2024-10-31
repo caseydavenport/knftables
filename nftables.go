@@ -285,7 +285,7 @@ func (nft *realNFTables) List(ctx context.Context, objectType string) ([]string,
 		typePlural = objectType + "s"
 	}
 
-	cmd := exec.CommandContext(ctx, nft.path, "--json", "list", typePlural, string(nft.family))
+	cmd := exec.CommandContext(ctx, nft.path, "--json", "list", typePlural, string(nft.family), nft.table)
 	out, err := nft.exec.Run(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run nft: %w", err)
