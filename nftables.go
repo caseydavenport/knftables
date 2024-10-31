@@ -276,16 +276,15 @@ func getJSONObjects(listOutput, objectType string) ([]map[string]interface{}, er
 func (nft *realNFTables) List(ctx context.Context, objectType string) ([]string, error) {
 	// All currently-existing nftables object types have plural forms that are just
 	// the singular form plus 's'.
-	var typeSingular, typePlural string
+	var typeSingular string
 	if objectType[len(objectType)-1] == 's' {
 		typeSingular = objectType[:len(objectType)-1]
-		typePlural = objectType
 	} else {
 		typeSingular = objectType
-		typePlural = objectType + "s"
 	}
 
-	cmd := exec.CommandContext(ctx, nft.path, "--json", "list", typePlural, string(nft.family), nft.table)
+	// List the table, then filter down to just the objects of the requested type.
+	cmd := exec.CommandContext(ctx, nft.path, "--json", "list", "table", string(nft.family), nft.table)
 	out, err := nft.exec.Run(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run nft: %w", err)
